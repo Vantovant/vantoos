@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useTasks, useReminders } from "@/hooks/useData";
 import {
   Calendar,
   Mail,
@@ -16,9 +17,69 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowUpRight,
+  Loader2,
 } from "lucide-react";
 
+// Helper to format due date relative to now
+function formatDueDate(dueDate: string | null | undefined): string {
+  if (!dueDate) return "No due date";
+
+  const due = new Date(dueDate);
+  const now = new Date();
+  const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) return "Overdue";
+  if (diffDays === 0) return "Due today";
+  if (diffDays === 1) return "Due tomorrow";
+  if (diffDays <= 7) return `Due in ${diffDays} days`;
+  return `Due ${due.toLocaleDateString()}`;
+}
+
+// Helper to get priority badge variant
+function getPriorityVariant(priority: string): "destructive" | "secondary" | "default" {
+  switch (priority) {
+    case "high":
+      return "destructive";
+    case "medium":
+    case "low":
+    default:
+      return "secondary";
+  }
+}
+
+// Helper to determine urgency based on due date
+function getUrgencyStatus(dueDate: string | null | undefined, priority: string): string {
+  if (!dueDate) return priority;
+
+  const due = new Date(dueDate);
+  const now = new Date();
+  const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return "urgent";
+  if (diffDays === 1) return "high";
+  return priority;
+}
+
 export default function Dashboard() {
+  const { tasks, loading: tasksLoading } = useTasks();
+  const { reminders, loading: remindersLoading, toggleReminder } = useReminders();
+
+  // Get top 5 priority tasks (high priority first, then by due date)
+  const topPriorityTasks = [...tasks]
+    .filter((t) => t.status !== "done")
+    .sort((a, b) => {
+      const priorityOrder = { high: 0, medium: 1, low: 2 };
+      const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
+      if (priorityDiff !== 0) return priorityDiff;
+
+      // Sort by due date if same priority
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    })
+    .slice(0, 5);
+
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
@@ -73,58 +134,46 @@ export default function Dashboard() {
           </div>
         </Card>
 
-        {/* Top 5 Priorities */}
+        {/* Top 5 Priorities - Using Real Tasks */}
         <Card className="p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4">Top 5 Priorities</h2>
-          <div className="space-y-3">
-            {[
-              {
-                title: "Complete Q1 Financial Report",
-                due: "Due today",
-                status: "urgent",
-              },
-              {
-                title: "Review marketing campaign analytics",
-                due: "Due tomorrow",
-                status: "high",
-              },
-              {
-                title: "Update product roadmap",
-                due: "Due in 2 days",
-                status: "medium",
-              },
-              {
-                title: "Client follow-up emails",
-                due: "Due in 3 days",
-                status: "medium",
-              },
-              {
-                title: "Team performance reviews",
-                due: "Due next week",
-                status: "low",
-              },
-            ].map((task, idx) => (
-              <div
-                key={idx}
-                className="flex items-center justify-between p-3 rounded-lg hover:bg-secondary transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-primary" />
-                  <div>
-                    <p className="font-medium">{task.title}</p>
-                    <p className="text-sm text-muted-foreground">{task.due}</p>
+          {tasksLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <span className="ml-2 text-muted-foreground">Loading tasks...</span>
+            </div>
+          ) : topPriorityTasks.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No active tasks. Create your first task to get started!</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {topPriorityTasks.map((task) => {
+                const urgencyStatus = getUrgencyStatus(task.dueDate, task.priority);
+                return (
+                  <div
+                    key={task.id}
+                    className="flex items-center justify-between p-3 rounded-lg hover:bg-secondary transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-primary" />
+                      <div>
+                        <p className="font-medium">{task.title}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatDueDate(task.dueDate)}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge
+                      variant={urgencyStatus === "urgent" ? "destructive" : getPriorityVariant(task.priority)}
+                    >
+                      {urgencyStatus}
+                    </Badge>
                   </div>
-                </div>
-                <Badge
-                  variant={
-                    task.status === "urgent" ? "destructive" : "secondary"
-                  }
-                >
-                  {task.status}
-                </Badge>
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -281,34 +330,43 @@ export default function Dashboard() {
             </div>
           </Card>
 
-          {/* Personal Reminders */}
+          {/* Personal Reminders - Using Real Data */}
           <Card className="p-6">
             <h2 className="text-lg font-semibold mb-4">Personal Reminders</h2>
-            <div className="space-y-3">
-              {[
-                { text: "Pick up dry cleaning", done: false },
-                { text: "Dentist appointment - 3 PM", done: false },
-                { text: "Buy birthday gift for mom", done: false },
-                { text: "Review insurance policy", done: true },
-              ].map((reminder, idx) => (
-                <div key={idx} className="flex items-center gap-3">
-                  {reminder.done ? (
-                    <CheckCircle2 className="h-5 w-5 text-primary" />
-                  ) : (
-                    <div className="h-5 w-5 rounded-full border-2 border-muted-foreground" />
-                  )}
-                  <p
-                    className={
-                      reminder.done
-                        ? "text-sm text-muted-foreground line-through"
-                        : "text-sm"
-                    }
+            {remindersLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : reminders.length === 0 ? (
+              <div className="text-center py-4 text-muted-foreground text-sm">
+                <p>No reminders yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {reminders.slice(0, 4).map((reminder) => (
+                  <div
+                    key={reminder.id}
+                    className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => toggleReminder(reminder.id)}
                   >
-                    {reminder.text}
-                  </p>
-                </div>
-              ))}
-            </div>
+                    {reminder.done ? (
+                      <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
+                    ) : (
+                      <div className="h-5 w-5 rounded-full border-2 border-muted-foreground flex-shrink-0" />
+                    )}
+                    <p
+                      className={
+                        reminder.done
+                          ? "text-sm text-muted-foreground line-through"
+                          : "text-sm"
+                      }
+                    >
+                      {reminder.title}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
 
           {/* Business Alerts */}
