@@ -193,3 +193,4 @@ export const notesApi = createApiClient<Note, CreateNoteInput, UpdateNoteInput>(
  * const agenda = await agendasApi.create({ date: '2026-02-27' });
  */
 export const agendasApi = createApiClient<Agenda, CreateAgendaInput, UpdateAgendaInput>('agendas');
+

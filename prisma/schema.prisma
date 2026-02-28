@@ -1,5 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,121 +6,150 @@ datasource db {
   provider = "sqlite"
 }
 
-// User model - Basic auth placeholder
 model User {
   id        String   @id @default(cuid())
-  name      String
   email     String   @unique
+  name      String?
+  role      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
-  tasks     Task[]
-  reminders Reminder[]
-  notes     Note[]
-  agendas   Agenda[]
+  tasks          Task[]
+  reminders      Reminder[]
+  meetings       Meeting[]
+  notes          Note[]
+  contacts       Contact[]
+  notifications  Notification[]
+  preferences    UserPreference?
+  executiveCtx   ExecutiveContext?
+  snapshots      ExecutiveSnapshot[]
 }
 
-// Task model
 model Task {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  priority    String   @default("medium") // "high", "medium", "low"
-  dueDate     DateTime?
-  status      String   @default("todo") // "todo", "inProgress", "done"
-  autoScheduled Boolean @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  title         String
+  description   String?
+  priority      String?
+  status        String?
+  autoScheduled Boolean  @default(false)
+  dueDate       DateTime?
+  deletedAt     DateTime?
 
-  // Relations
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// Reminder model
 model Reminder {
   id        String   @id @default(cuid())
   title     String
   done      Boolean  @default(false)
   remindAt  DateTime?
+  deletedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// Note model
+model Meeting {
+  id        String   @id @default(cuid())
+  title     String
+  notes     String?
+  startTime DateTime?
+  endTime   DateTime?
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 model Note {
   id        String   @id @default(cuid())
   title     String
-  content   String
+  content   String?
+  deletedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// Agenda model
-model Agenda {
-  id         String   @id @default(cuid())
-  date       DateTime
-  summary    String?
-  priorities String? // JSON serialized array of top priorities
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+model Contact {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  deletedAt DateTime?
 
-  // Relations
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@unique([userId, date])
-}
-
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Notification {
   id        String   @id @default(cuid())
-  userId    String
   title     String
   message   String?
   read      Boolean  @default(false)
+
   createdAt DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id])
-  @@index([userId, createdAt])
+  userId String
+  user   User @relation(fields: [userId], references: [id])
 }
 
-model UserPreference {
-  id               String   @id @default(cuid())
-  userId           String   @unique
-  timezone         String   @default("Africa/Johannesburg")
-  language         String   @default("en")
-  theme            String   @default("system")
-  workingHoursStart String?
-  workingHoursEnd   String?
-  updatedAt        DateTime @updatedAt
+model ExecutiveContext {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  vision        String?
+  quarterlyGoal String?
+  weeklyFocus   String?
+
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id])
 }
 
 model ExecutiveSnapshot {
-  id             String   @id @default(cuid())
-  userId         String
-  date           DateTime
-  weeklyFocus    String?
-  priorityTasks  Json
-  meetingsToday  Json
+  id              String   @id @default(cuid())
+  userId          String
+  date            DateTime
+  weeklyFocus     String?
+  priorityTasks   Json
+  meetingsToday   Json
   urgentReminders Json
-  stats          Json
-  updatedAt      DateTime @updatedAt
+  stats           Json
+
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id])
 
   @@unique([userId, date])
   @@index([userId, date])
+}
+
+model UserPreference {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  timezone          String   @default("Africa/Johannesburg")
+  language          String   @default("en")
+  theme             String   @default("system")
+  workingHoursStart String?
+  workingHoursEnd   String?
+
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
 }
